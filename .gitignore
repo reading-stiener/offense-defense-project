@@ -9,3 +9,6 @@ __pycache__/
 # Data/results that shouldn't be versioned
 data/
 results/
+
+# vscode 
+.vscode/*
