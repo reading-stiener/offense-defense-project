@@ -1,0 +1,11 @@
+# Python/virtualenv artifacts
+env/
+__pycache__/
+*.py[cod]
+
+# Jupyter noise
+.ipynb_checkpoints/
+
+# Data/results that shouldn't be versioned
+data/
+results/
