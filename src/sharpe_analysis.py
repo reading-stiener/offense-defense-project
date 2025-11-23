@@ -3,7 +3,6 @@ Sharpe ratio and deflated Sharpe ratio calculations
 """
 import numpy as np
 from scipy.stats import norm
-from returns_calculator import calculate_excess_returns
 
 
 def calculate_sharpe_ratio(excess_returns, frequency='annual'):
@@ -53,7 +52,17 @@ def calculate_sharpe_ratio_by_season(df_monthly, df_rf_monthly, season='winter')
         Monthly risk-free rates
     season : str
         'winter' or 'summer'
+        onthly_rets = df_monthly.loc[year].values
         
+        # Remove NaN
+        valid_mask = ~np.isnan(monthly_rets)
+        monthly_rets_clean = monthly_rets[valid_mask]
+        
+        if len(monthly_rets_clean) == 0:
+            annual_returns.append(np.nan)
+            continue
+        
+        # Compound: (1 + r1/100) * (1 + r2/100) * ... - 1
     Returns:
     --------
     float

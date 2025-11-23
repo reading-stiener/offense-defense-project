@@ -48,94 +48,16 @@ def calculate_annual_returns_from_monthly(df_monthly, df_rf_annual=None):
                 # But they're in %, need to convert to decimal
                 annual_ret = annual_ret - (annual_rf_rate / 100)
 
-        print(f"year, return risk free, and excess: {year} {annual_rf_rate} {annual_ret}")
+        #print(f"year, return risk free, and excess: {year} {annual_rf_rate} {annual_ret}")
         
         annual_returns.append(annual_ret * 100)  # Back to percentage
     
     return pd.Series(annual_returns, index=df_monthly.index, name='Annual_Return')
 
 
-def calculate_excess_returns(returns, risk_free_rate):
-    """
-    Calculate excess returns (returns - risk_free_rate).
-    Handles alignment automatically.
-    
-    Parameters:
-    -----------
-    returns : array-like, pd.Series, or pd.DataFrame
-        Returns data
-    risk_free_rate : float, array-like, pd.Series, or pd.DataFrame
-        Risk-free rate(s)
-        
-    Returns:
-    --------
-    np.array
-        Excess returns (cleaned of NaN)
-    """
-    # Scalar risk-free rate
-    if isinstance(risk_free_rate, (int, float)):
-        returns_array = returns.values.flatten() if hasattr(returns, 'values') else np.array(returns).flatten()
-        returns_clean = returns_array[~np.isnan(returns_array)]
-        return returns_clean - risk_free_rate
-    
-    # Array-like risk-free rate
-    if hasattr(returns, 'values'):
-        returns_vals = returns.values.flatten()
-    else:
-        returns_vals = np.array(returns).flatten()
-    
-    if hasattr(risk_free_rate, 'values'):
-        rf_vals = risk_free_rate.values.flatten()
-    else:
-        rf_vals = np.array(risk_free_rate).flatten()
-    
-    # Check length match
-    if len(returns_vals) != len(rf_vals):
-        if hasattr(returns, 'index') and hasattr(risk_free_rate, 'index'):
-            # Pandas alignment
-            if isinstance(returns, pd.DataFrame):
-                returns_flat = returns.stack()
-            else:
-                returns_flat = returns
-                
-            if isinstance(risk_free_rate, pd.DataFrame):
-                rf_flat = risk_free_rate.stack()
-            else:
-                rf_flat = risk_free_rate
-            
-            aligned_data = pd.DataFrame({
-                'returns': returns_flat,
-                'rf': rf_flat
-            }).dropna()
-            
-            return (aligned_data['returns'] - aligned_data['rf']).values
-        else:
-            raise ValueError(
-                f"Length mismatch: returns={len(returns_vals)}, rf={len(rf_vals)}"
-            )
-    
-    # Same length - element-wise
-    valid_mask = ~(np.isnan(returns_vals) | np.isnan(rf_vals))
-    return returns_vals[valid_mask] - rf_vals[valid_mask]
-
-
 def calculate_seasonal_returns(df_monthly, season='winter', df_rf_monthly=None):
     """
-    Calculate returns for a specific season.
-    
-    Parameters:
-    -----------
-    df_monthly : pd.DataFrame
-        Monthly returns
-    season : str
-        'winter' (Nov-Apr) or 'summer' (May-Oct)
-    df_rf_monthly : pd.DataFrame, optional
-        Risk-free rates
-        
-    Returns:
-    --------
-    np.array
-        Seasonal returns (excess if rf provided)
+    Calculate returns for a specific season with proper alignment.
     """
     if season.lower() == 'winter':
         months = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
@@ -145,15 +67,25 @@ def calculate_seasonal_returns(df_monthly, season='winter', df_rf_monthly=None):
         raise ValueError("Season must be 'winter' or 'summer'")
     
     seasonal_rets = df_monthly[months].values.flatten()
-    seasonal_rets = seasonal_rets[~np.isnan(seasonal_rets)]
     
     if df_rf_monthly is not None:
-        seasonal_rf = df_rf_monthly[months].values.flatten()
-        seasonal_rf = seasonal_rf[~np.isnan(seasonal_rf)]
+        seasonal_rf_annual = df_rf_monthly[months].values.flatten()
         
-        # Align lengths
-        min_len = min(len(seasonal_rets), len(seasonal_rf))
-        seasonal_rets = seasonal_rets[:min_len] - seasonal_rf[:min_len]
+        # Convert annual risk-free rate to monthly
+        seasonal_rf_monthly = (1 + seasonal_rf_annual) ** (1/12) - 1
+        
+        # Create combined mask for valid data in BOTH arrays
+        valid_mask = ~(np.isnan(seasonal_rets) | np.isnan(seasonal_rf_monthly))
+        
+        # Apply mask to keep aligned pairs only
+        seasonal_rets = seasonal_rets[valid_mask]
+        seasonal_rf_monthly = seasonal_rf_monthly[valid_mask]
+        
+        # Calculate excess returns
+        seasonal_rets = seasonal_rets - seasonal_rf_monthly
+    else:
+        # Just remove NaNs from returns
+        seasonal_rets = seasonal_rets[~np.isnan(seasonal_rets)]
     
     return seasonal_rets
 
