@@ -4,7 +4,7 @@ Data loading and cleaning utilities for seasonal analysis project
 import pandas as pd
 import numpy as np
 
-def load_sector_data(file_path, sheet_name, start_year=None, end_year=None):
+def load_sector_data(file_path, sheet_name, skiprows=6, start_year=None, end_year=None, numrows=None):
     """
     Load and clean sector data from Excel file.
     
@@ -14,6 +14,8 @@ def load_sector_data(file_path, sheet_name, start_year=None, end_year=None):
         Path to Excel file
     sheet_name : str
         Name of sheet to load (e.g., 'S&P500', 'Discretionary', 'Staples')
+    skiprows: int
+        Number of rows to skip
     start_year : int, optional
         Filter data from this year onwards
     end_year : int, optional
@@ -25,10 +27,14 @@ def load_sector_data(file_path, sheet_name, start_year=None, end_year=None):
         Cleaned dataframe with years as index, months as columns
     """
     # Read raw data
-    df_raw = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=6)
+    
+    df_raw = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=skiprows)
     
     # Clean up
-    df = df_raw.iloc[:, 1:]  # Drop first unnamed column
+    if numrows: 
+        df = df_raw.iloc[:numrows, 1:]  # Drop first unnamed column, special case for factor models
+    else:
+        df = df_raw.iloc[:, 1:] 
     df.columns = ['Year', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     

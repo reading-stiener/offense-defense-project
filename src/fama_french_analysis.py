@@ -67,17 +67,15 @@ def align_strategy_with_factors(strategy_returns, ff_factors):
     pd.DataFrame
         Aligned data with strategy returns and factors
     """
-    # Combine into single DataFrame
-    data = pd.DataFrame({
-        'Strategy': strategy_returns
-    })
-    
-    # Add factors
-    for col in ff_factors.columns:
-        data[col] = ff_factors[col]
-    
-    # Drop any rows with missing values
-    data = data.dropna()
+    # Ensure numeric and consistent column names
+    rename_map = {'rm_rf': 'Mkt-RF', 'smb': 'SMB', 'hml': 'HML', 'rf': 'RF'}
+    ff_clean = (ff_factors.rename(columns=rename_map)
+                           .apply(pd.to_numeric, errors='coerce'))
+
+    strategy_clean = pd.to_numeric(strategy_returns, errors='coerce')
+
+    # Combine on index, drop rows with missing values
+    data = pd.concat([strategy_clean.rename('Strategy'), ff_clean], axis=1).dropna()
     
     return data
 
@@ -112,6 +110,8 @@ def run_fama_french_regression(strategy_returns, ff_factors, model_type='3factor
     """
     # Align data
     data = align_strategy_with_factors(strategy_returns, ff_factors)
+
+    print(data.head(10))
     
     # Dependent variable (strategy excess returns)
     y = data['Strategy']
