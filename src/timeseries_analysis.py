@@ -86,9 +86,10 @@ def calculate_sp500_returns_ts(df_sp500, df_rf):
     # Convert to time series
     sp500_ts = reshape_to_timeseries(df_sp500)
     rf_annual_ts = reshape_to_timeseries(df_rf)
+
     
     # Convert RF from annual to monthly
-    rf_monthly_ts = (1 + rf_annual_ts) ** (1/12) - 1
+    rf_monthly_ts = ((1 + rf_annual_ts/100) ** (1/12) - 1)*100
     
     # Align indices and calculate excess returns
     sp500_ts, rf_monthly_ts = sp500_ts.align(rf_monthly_ts, join='inner')
@@ -118,7 +119,7 @@ def calculate_smga_returns_ts(df_sp500, df_rf):
     # Convert to time series
     sp500_ts = reshape_to_timeseries(df_sp500)
     rf_annual_ts = reshape_to_timeseries(df_rf)
-    rf_monthly_ts = (1 + rf_annual_ts) ** (1/12) - 1
+    rf_monthly_ts = ((1 + rf_annual_ts/100) ** (1/12) - 1)*100
     
     # Align indices
     sp500_ts, rf_monthly_ts = sp500_ts.align(rf_monthly_ts, join='inner')

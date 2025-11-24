@@ -180,8 +180,8 @@ def create_regression_summary_table(regression_results_dict):
     for strategy_name, results in regression_results_dict.items():
         row = {
             'Strategy': strategy_name,
-            'Alpha (monthly %)': results['alpha'] * 100,
-            'Alpha (annual %)': results['alpha_annual'] * 100,
+            'Alpha (monthly %)': results['alpha'],
+            'Alpha (annual %)': results['alpha_annual'],
             'Alpha p-value': results['p_values']['const'],
             'Beta (Market)': results['beta_market'],
             'Beta (SMB)': results['beta_smb'],
@@ -423,8 +423,8 @@ def print_regression_summary(results, strategy_name):
     print("=" * 80)
     print(f"FAMA-FRENCH REGRESSION RESULTS: {strategy_name}")
     print("=" * 80)
-    print(f"\nAlpha (Monthly):     {results['alpha']*100:>8.4f}%  (p={results['p_values']['const']:.4f})")
-    print(f"Alpha (Annual):      {results['alpha_annual']*100:>8.4f}%")
+    print(f"\nAlpha (Monthly):     {results['alpha']:>8.4f}%  (p={results['p_values']['const']:.4f})")
+    print(f"Alpha (Annual):      {results['alpha_annual']:>8.4f}%")
     
     sig = ""
     if results['p_values']['const'] < 0.01:
