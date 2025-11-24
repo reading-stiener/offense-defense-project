@@ -8,48 +8,6 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def load_fama_french_factors(filepath=None):
-    """
-    Load Fama-French factors from CSV or Ken French's data library.
-    
-    Parameters:
-    -----------
-    filepath : str, optional
-        Path to CSV file with Fama-French factors
-        Expected columns: Date, Mkt-RF, SMB, HML, RF
-        
-    Returns:
-    --------
-    pd.DataFrame
-        DataFrame with datetime index and factor columns
-        
-    Notes:
-    ------
-    If no filepath provided, download from Ken French's website:
-    https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html
-    """
-    if filepath:
-        # Load from file
-        ff_factors = pd.read_csv(filepath)
-        
-        # Convert date column to datetime
-        # Assuming format is YYYYMM (e.g., 199301 for Jan 1993)
-        ff_factors['Date'] = pd.to_datetime(ff_factors['Date'].astype(str), format='%Y%m')
-        ff_factors = ff_factors.set_index('Date')
-        
-        # Convert from percentages to decimals if needed
-        # (Ken French data is typically in percentages)
-        if ff_factors.abs().mean().mean() > 1:
-            ff_factors = ff_factors / 100
-            
-    else:
-        print("Please provide filepath to Fama-French factors CSV")
-        print("Download from: https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html")
-        print("Select: 'Fama/French 3 Factors' monthly data")
-        return None
-    
-    return ff_factors
-
 
 def align_strategy_with_factors(strategy_returns, ff_factors):
     """
@@ -111,7 +69,6 @@ def run_fama_french_regression(strategy_returns, ff_factors, model_type='3factor
     # Align data
     data = align_strategy_with_factors(strategy_returns, ff_factors)
 
-    print(data.head(10))
     
     # Dependent variable (strategy excess returns)
     y = data['Strategy']
@@ -389,7 +346,7 @@ def plot_rolling_alpha(strategy_returns, ff_factors, window=36, strategy_name='S
         model = sm.OLS(y, X).fit()
         
         # Store alpha (annualized)
-        rolling_alphas.append(model.params['const'] * 12 * 100)
+        rolling_alphas.append(model.params['const'] * 12)
         dates.append(data.index[i])
     
     # Create plot
