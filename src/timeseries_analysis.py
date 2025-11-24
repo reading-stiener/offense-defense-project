@@ -76,26 +76,34 @@ def calculate_sp500_returns_ts(df_sp500, df_rf):
     df_sp500 : pd.DataFrame
         S&P 500 monthly returns (wide format)
     df_rf : pd.DataFrame
-        Risk-free rates ANNUALIZED (wide format)
+        Risk-free rates monthly (wide format)
         
     Returns:
     --------
-    pd.Series
-        Time series of excess returns with datetime index
+    pd.DataFrame
+        DataFrame with columns:
+        - 'gross': Gross returns
+        - 'excess': Excess returns (gross - rf)
+        - 'rf': Risk-free rate (for reference)
     """
     # Convert to time series
     sp500_ts = reshape_to_timeseries(df_sp500)
-    rf_annual_ts = reshape_to_timeseries(df_rf)
+    rf_ts = reshape_to_timeseries(df_rf)
 
     
     # Convert RF from annual to monthly
-    rf_monthly_ts = ((1 + rf_annual_ts/100) ** (1/12) - 1)*100
+    # rf_monthly_ts = ((1 + rf_annual_ts/100) ** (1/12) - 1)*100
     
     # Align indices and calculate excess returns
-    sp500_ts, rf_monthly_ts = sp500_ts.align(rf_monthly_ts, join='inner')
-    excess_returns = sp500_ts - rf_monthly_ts
+    sp500_ts, rf_monthly_ts = sp500_ts.align(rf_ts, join='inner')
+
+     # Create output dataframe
+    results = pd.DataFrame(index=sp500_ts.index)
+    results['rf'] = rf_monthly_ts
+    results['gross'] = sp500_ts
+    results['excess'] = sp500_ts - rf_monthly_ts
     
-    return excess_returns
+    return results
 
 
 def calculate_smga_returns_ts(df_sp500, df_rf):
@@ -109,37 +117,42 @@ def calculate_smga_returns_ts(df_sp500, df_rf):
     df_sp500 : pd.DataFrame
         S&P 500 monthly returns (wide format)
     df_rf : pd.DataFrame
-        Risk-free rates ANNUALIZED (wide format)
+        Risk-free rates monthly (wide format)
         
     Returns:
     --------
-    pd.Series
-        Time series of excess returns with datetime index
+    pd.DataFrame
+        DataFrame with columns:
+        - 'gross': Gross returns
+        - 'excess': Excess returns (gross - rf)
+        - 'rf': Risk-free rate (for reference)
     """
+
     # Convert to time series
     sp500_ts = reshape_to_timeseries(df_sp500)
-    rf_annual_ts = reshape_to_timeseries(df_rf)
-    rf_monthly_ts = ((1 + rf_annual_ts/100) ** (1/12) - 1)*100
+    rf_ts = reshape_to_timeseries(df_rf)
+    # rf_monthly_ts = ((1 + rf_annual_ts/100) ** (1/12) - 1)*100
     
     # Align indices
-    sp500_ts, rf_monthly_ts = sp500_ts.align(rf_monthly_ts, join='inner')
+    sp500_ts, rf_monthly_ts = sp500_ts.align(rf_ts, join='inner')
     
-    # Create strategy returns
-    strategy_returns = pd.Series(index=sp500_ts.index, dtype=float)
+    # Create output dataframe
+    results = pd.DataFrame(index=sp500_ts.index)
+    results['rf'] = rf_monthly_ts
+    results['gross'] = np.nan
+    results['excess'] = np.nan
     
     for date in sp500_ts.index:
         month = date.month
-        
-        # Nov-Apr: months 11, 12, 1, 2, 3, 4
-        if month in [11, 12, 1, 2, 3, 4]:
-            # Invested in S&P 500
-            strategy_returns[date] = sp500_ts[date] - rf_monthly_ts[date]
-        else:
-            # May-Oct: months 5, 6, 7, 8, 9, 10
-            # In risk-free asset, excess return = 0
-            strategy_returns[date] = 0.0
+
+        if month in [11, 12, 1, 2, 3, 4]:  # Nov-Apr: invested in S&P 500
+            results.loc[date, 'gross'] = sp500_ts[date]
+            results.loc[date, 'excess'] = sp500_ts[date] - rf_monthly_ts[date]
+        else:  # May-Oct: invested in risk-free asset
+            results.loc[date, 'gross'] = rf_monthly_ts[date]
+            results.loc[date, 'excess'] = 0.0  # RF - RF = 0
     
-    return strategy_returns
+    return results
 
 
 def calculate_sector_rotation_returns_ts(df_cyclical, df_defensive, df_rf):
@@ -159,37 +172,43 @@ def calculate_sector_rotation_returns_ts(df_cyclical, df_defensive, df_rf):
         
     Returns:
     --------
-    pd.Series
-        Time series of excess returns with datetime index
+    pd.DataFrame
+        DataFrame with columns:
+        - 'gross': Gross returns
+        - 'excess': Excess returns (gross - rf)
+        - 'rf': Risk-free rate (for reference)
     """
     # Convert to time series
     cyclical_ts = reshape_to_timeseries(df_cyclical)
     defensive_ts = reshape_to_timeseries(df_defensive)
-    rf_annual_ts = reshape_to_timeseries(df_rf)
-    rf_monthly_ts = (1 + rf_annual_ts) ** (1/12) - 1
+    rf_ts = reshape_to_timeseries(df_rf)
     
     # Align all series
     combined = pd.DataFrame({
         'cyclical': cyclical_ts,
         'defensive': defensive_ts,
-        'rf': rf_monthly_ts
+        'rf': rf_ts
     })
     combined = combined.dropna()
+
+    results = pd.DataFrame(index=combined.index)
+    results['rf'] = combined['rf']
+    results['gross'] = np.nan
+    results['excess'] = np.nan
     
-    # Create strategy returns
-    strategy_returns = pd.Series(index=combined.index, dtype=float)
     
     for date in combined.index:
         month = date.month
         
-        # Nov-Apr: Long cyclicals
-        if month in [11, 12, 1, 2, 3, 4]:
-            strategy_returns[date] = combined.loc[date, 'cyclical'] - combined.loc[date, 'rf']
-        else:
-            # May-Oct: Long defensives
-            strategy_returns[date] = combined.loc[date, 'defensive'] - combined.loc[date, 'rf']
+        if month in [11, 12, 1, 2, 3, 4]:  # Nov-Apr: Long cyclicals
+            results.loc[date, 'gross'] = combined.loc[date, 'cyclical']
+            results.loc[date, 'excess'] = combined.loc[date, 'cyclical'] - combined.loc[date, 'rf']
+        else:  # May-Oct: Long defensives
+            results.loc[date, 'gross'] = combined.loc[date, 'defensive']
+            results.loc[date, 'excess'] = combined.loc[date, 'defensive'] - combined.loc[date, 'rf']
     
-    return strategy_returns
+    
+    return results
 
 
 def calculate_long_short_returns_ts(df_cyclical, df_defensive, df_rf):
@@ -215,33 +234,35 @@ def calculate_long_short_returns_ts(df_cyclical, df_defensive, df_rf):
     # Convert to time series
     cyclical_ts = reshape_to_timeseries(df_cyclical)
     defensive_ts = reshape_to_timeseries(df_defensive)
-    rf_annual_ts = reshape_to_timeseries(df_rf)
-    rf_monthly_ts = (1 + rf_annual_ts) ** (1/12) - 1
+    rf_ts = reshape_to_timeseries(df_rf)
+    # rf_monthly_ts = (1 + rf_annual_ts) ** (1/12) - 1
     
     # Align all series
     combined = pd.DataFrame({
         'cyclical': cyclical_ts,
         'defensive': defensive_ts,
-        'rf': rf_monthly_ts
+        'rf': rf_ts
     })
     combined = combined.dropna()
     
-    # Create strategy returns
-    strategy_returns = pd.Series(index=combined.index, dtype=float)
+    results = pd.DataFrame(index=combined.index)
+    results['rf'] = combined['rf']
+    results['gross'] = np.nan
+    results['excess'] = np.nan
     
     for date in combined.index:
         month = date.month
         
-        # Nov-Apr: Long cyclicals, Short defensives
-        if month in [11, 12, 1, 2, 3, 4]:
-            long_short = combined.loc[date, 'cyclical'] - combined.loc[date, 'defensive']
-            strategy_returns[date] = long_short - combined.loc[date, 'rf']
-        else:
-            # May-Oct: Long defensives, Short cyclicals
-            long_short = combined.loc[date, 'defensive'] - combined.loc[date, 'cyclical']
-            strategy_returns[date] = long_short - combined.loc[date, 'rf']
-    
-    return strategy_returns
+        if month in [11, 12, 1, 2, 3, 4]:  # Nov-Apr: Long cyc, Short def
+            long_short_return = combined.loc[date, 'cyclical'] - combined.loc[date, 'defensive']
+            results.loc[date, 'gross'] = long_short_return
+            results.loc[date, 'excess'] = long_short_return - combined.loc[date, 'rf']
+        else:  # May-Oct: Long def, Short cyc
+            long_short_return = combined.loc[date, 'defensive'] - combined.loc[date, 'cyclical']
+            results.loc[date, 'gross'] = long_short_return
+            results.loc[date, 'excess'] = long_short_return - combined.loc[date, 'rf']
+
+    return results
 
 
 # ==============================================================================
@@ -287,14 +308,14 @@ def filter_period(returns_ts, start_year=None, end_year=None, exclude_years=None
 # SUMMARY STATISTICS
 # ==============================================================================
 
-def calculate_statistics_ts(returns_ts, strategy_name):
+def calculate_statistics_ts(returns_df, strategy_name):
     """
-    Calculate summary statistics for a time series.
+    Calculate summary statistics for a return series.
     
     Parameters:
     -----------
-    returns_ts : pd.Series
-        Time series of monthly excess returns
+    returns_df : pd.DataFrame
+        DataFrame with 'gross', 'excess', 'rf' columns
     strategy_name : str
         Name of strategy
         
@@ -303,27 +324,28 @@ def calculate_statistics_ts(returns_ts, strategy_name):
     dict
         Dictionary of statistics
     """
-    # Drop NaN values
-    returns_clean = returns_ts.dropna()
+    gross_returns = returns_df['gross'].dropna()
+    excess_returns = returns_df['excess'].dropna()
+    rf_returns = returns_df['rf'].dropna()
     
-    mean_monthly = returns_clean.mean()
-    median_monthly = returns_clean.median()
-    std_monthly = returns_clean.std()
+    mean_monthly = gross_returns.mean()
+    median_monthly = gross_returns.median()
+    std_monthly = gross_returns.std()
     
-    # Sharpe ratio (annualized)
-    sharpe = (mean_monthly / std_monthly) * np.sqrt(12) if std_monthly != 0 else 0
+    # Sharpe ratio using excess returns
+    if std_monthly != 0 and not np.isnan(std_monthly):
+        sharpe = (excess_returns.mean() / std_monthly) * np.sqrt(12)
+    else:
+        sharpe = 0
     
-    # Sortino ratio (annualized)
-    downside_returns = returns_clean[returns_clean < 0]
+    # Sortino ratio
+    downside_returns = gross_returns[gross_returns < 0]
     downside_std = downside_returns.std()
-    sortino = (mean_monthly / downside_std) * np.sqrt(12) if downside_std != 0 and not np.isnan(downside_std) else 0
+    sortino = (excess_returns.mean() / downside_std) * np.sqrt(12) if downside_std != 0 and not np.isnan(downside_std) else 0
     
-    # P-value (t-test against zero)
-    # from scipy import stats
-    # if len(returns_clean) > 1:
-    #     res = stats.ttest_1samp(returns_clean, 0)
-    #     t_stat = res.statistic
-    #     p_value = res.pvalue
+    # # P-value (t-test against zero for excess returns)
+    # if len(excess_returns) > 1:
+    #     t_stat, p_value = stats.ttest_1samp(excess_returns, 0)
     # else:
     #     p_value = np.nan
     
@@ -335,9 +357,9 @@ def calculate_statistics_ts(returns_ts, strategy_name):
         'Sharpe': sharpe,
         'Sortino': sortino,
         #'P-value': p_value,
-        'N': len(returns_clean),
-        'Start': returns_clean.index.min().strftime('%Y-%m'),
-        'End': returns_clean.index.max().strftime('%Y-%m')
+        'N': len(gross_returns),
+        'Start': gross_returns.index.min().strftime('%Y-%m'),
+        'End': gross_returns.index.max().strftime('%Y-%m')
     }
 
 
