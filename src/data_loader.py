@@ -32,9 +32,9 @@ def load_sector_data(file_path, sheet_name, skiprows=6, start_year=None, end_yea
     
     # Clean up
     if numrows: 
-        df = df_raw.iloc[:numrows, 1:]  # Drop first unnamed column, special case for factor models
+        df = df_raw.iloc[:numrows, 1:14]  # Drop first unnamed column, special case for factor models
     else:
-        df = df_raw.iloc[:, 1:] 
+        df = df_raw.iloc[:, 1:14] 
     df.columns = ['Year', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     

@@ -35,7 +35,7 @@ def create_datetime_index(df_monthly):
     return pd.DatetimeIndex(dates)
 
 
-def reshape_to_timeseries(df_monthly):
+def reshape_to_timeseries(df_monthly: pd.DataFrame):
     """
     Reshape wide format (years x months) to time series.
     
@@ -400,6 +400,9 @@ def create_summary_table_ts(strategies_dict, period_name="Full Period"):
 # VISUALIZATION
 # ==============================================================================
 
+
+
+
 def plot_cumulative_returns(strategies_dict, title="Cumulative Returns"):
     """
     Plot cumulative returns for all strategies.
@@ -424,6 +427,86 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns"):
     ax.set_ylabel('Cumulative Return', fontsize=12)
     ax.set_title(title, fontsize=14, fontweight='bold')
     ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_cumulative_returns(strategies_dict, title="Cumulative Returns", 
+                           rf_data=None, high_rate_threshold=4):
+    """
+    Plot cumulative returns for all strategies with optional interest rate shading.
+    
+    Parameters:
+    -----------
+    strategies_dict : dict
+        Dictionary with strategy names as keys and DataFrames as values
+        Each DataFrame should have 'gross' and 'rf' columns
+    title : str
+        Plot title
+    rf_data : pd.Series, optional
+        Time series of risk-free rates (monthly). Will shade high rate periods.
+    high_rate_threshold : float
+        Threshold for defining "high" rates (annualized, as decimal). Default 0.04 (4%)
+    """
+    fig, ax = plt.subplots(figsize=(14, 7))
+    
+    # Plot cumulative returns for each strategy
+    for strategy_name, returns_df in strategies_dict.items():
+        # Calculate cumulative returns from gross column
+        cum_returns = (1 + returns_df/100).cumprod()
+        
+        # Plot
+        ax.plot(cum_returns.index, cum_returns.values, label=strategy_name, linewidth=2)
+    
+    # Overlay interest rate periods if provided
+    if rf_data is not None:
+        # align the data series
+        
+
+        # Annualize the monthly rates
+        rf_annual = ((1 + rf_data/100) ** 12 - 1)*100
+
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+        rf_annual.plot(ax=ax1, label="Annualized Risk-Free Rate", color="#1f77b4")
+        ax1.set_title("Annualized Risk-Free Rate Over Time")
+        ax1.set_ylabel("Rate")
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(frameon=False)
+     
+        # Create boolean mask for high rates
+        high_rate_mask = rf_annual >= high_rate_threshold
+        
+        # Find contiguous regions using diff
+        # Where mask changes from False to True (start of high period)
+        # Where mask changes from True to False (end of high period)
+        mask_diff = high_rate_mask.astype(int).diff()
+        
+        starts = high_rate_mask.index[mask_diff == 1]  # Transitions to high
+        ends = high_rate_mask.index[mask_diff == -1]   # Transitions to low
+        
+        # Handle edge cases
+        if high_rate_mask.iloc[0]:
+            starts = starts.insert(0, high_rate_mask.index[0])
+        if high_rate_mask.iloc[-1]:
+            ends = ends.insert(len(ends), high_rate_mask.index[-1])
+        
+        # Shade all high rate periods
+        for start, end in zip(starts, ends):
+            ax.axvspan(start, end, alpha=0.2, color='red', 
+                      label='High Rate (>4%)' if start == starts[0] else '')
+        
+        # Add threshold info
+        ax.text(0.02, 0.98, f'High Rate Threshold: {high_rate_threshold:.1%}',
+                transform=ax.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7),
+                fontsize=9)
+    
+    ax.set_xlabel('Date', fontsize=12)
+    ax.set_ylabel('Cumulative Return (Growth of $1)', fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, loc='best')
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
