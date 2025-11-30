@@ -211,6 +211,328 @@ def calculate_sector_rotation_returns_ts(df_cyclical, df_defensive, df_rf):
     return results
 
 
+def calculate_szne_returns_ts(df_discretionary, df_industrials, df_tech, df_materials,
+                              df_staples, df_healthcare, df_rf):
+    """
+    Calculate SZNE (Pacer) strategy returns as time series.
+    
+    Strategy:
+    - Nov-Apr (Favorable): 25% each in Discretionary, Industrials, Tech, Materials (100% cyclical)
+    - May-Oct (Unfavorable): 50% Staples, 50% Healthcare (100% defensive)
+    
+    Parameters:
+    -----------
+    df_discretionary : pd.DataFrame
+        Consumer Discretionary returns (wide format)
+    df_industrials : pd.DataFrame
+        Industrials returns (wide format)
+    df_tech : pd.DataFrame
+        Information Technology returns (wide format)
+    df_materials : pd.DataFrame
+        Materials returns (wide format)
+    df_staples : pd.DataFrame
+        Consumer Staples returns (wide format)
+    df_healthcare : pd.DataFrame
+        Healthcare returns (wide format)
+    df_rf : pd.DataFrame
+        Risk-free rates ANNUALIZED (wide format)
+        
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with columns:
+        - 'gross': Gross returns
+        - 'excess': Excess returns (gross - rf)
+        - 'rf': Risk-free rate (for reference)
+    """
+    # Convert to time series
+    discretionary_ts = reshape_to_timeseries(df_discretionary)
+    industrials_ts = reshape_to_timeseries(df_industrials)
+    tech_ts = reshape_to_timeseries(df_tech)
+    materials_ts = reshape_to_timeseries(df_materials)
+    staples_ts = reshape_to_timeseries(df_staples)
+    healthcare_ts = reshape_to_timeseries(df_healthcare)
+    rf_ts = reshape_to_timeseries(df_rf)
+    
+    # Align all series
+    combined = pd.DataFrame({
+        'discretionary': discretionary_ts,
+        'industrials': industrials_ts,
+        'tech': tech_ts,
+        'materials': materials_ts,
+        'staples': staples_ts,
+        'healthcare': healthcare_ts,
+        'rf': rf_ts
+    })
+    combined = combined.dropna()
+    
+    # Create results DataFrame
+    results = pd.DataFrame(index=combined.index)
+    results['rf'] = combined['rf']
+    results['gross'] = np.nan
+    results['excess'] = np.nan
+    
+    # Calculate strategy returns for each date
+    for date in combined.index:
+        month = date.month
+        
+        if month in [11, 12, 1, 2, 3, 4]:  # Nov-Apr: Cyclical portfolio
+            # Equal weight: 25% each in 4 cyclical sectors
+            portfolio_return = (
+                0.25 * combined.loc[date, 'discretionary'] +
+                0.25 * combined.loc[date, 'industrials'] +
+                0.25 * combined.loc[date, 'tech'] +
+                0.25 * combined.loc[date, 'materials']
+            )
+            results.loc[date, 'gross'] = portfolio_return
+            results.loc[date, 'excess'] = portfolio_return - combined.loc[date, 'rf']
+            
+        else:  # May-Oct: Defensive portfolio
+            # Equal weight: 50% each in 2 defensive sectors
+            portfolio_return = (
+                0.50 * combined.loc[date, 'staples'] +
+                0.50 * combined.loc[date, 'healthcare']
+            )
+            results.loc[date, 'gross'] = portfolio_return
+            results.loc[date, 'excess'] = portfolio_return - combined.loc[date, 'rf']
+    
+    return results
+
+
+def calculate_modified_szne_returns_ts(
+    # Offense sectors
+    df_discretionary, df_industrials, df_tech, df_materials,
+    df_communication, df_financials, df_energy,
+    # Defense sectors
+    df_staples, df_healthcare, df_utilities, df_realestate,
+    # Market data
+    df_rf,
+    df_interest_rates,  # NEW: Interest rate time series
+    # Rate thresholds
+    high_rate_threshold=3,  # 4% annual
+    low_rate_threshold=1,   # 2% annual
+    # Configuration
+    include_realestate=False,
+     # Timing parameters
+    offense_start_month=10,  # Mid-October
+    offense_start_day=15,
+    defense_start_month=4,   # Mid-April
+    defense_start_day=15,
+):
+    """
+    Calculate SZNE returns with interest rate regime adjustments.
+    
+    Interest Rate Logic:
+    - HIGH RATES (>4%): Favor Financials, Energy (benefit from rates)
+    - LOW RATES (<2%): Favor Tech, Communication (growth sectors)
+    - NORMAL RATES (2-4%): Standard equal weighting
+    
+    Parameters:
+    -----------
+    df_interest_rates : pd.DataFrame
+        Interest rate time series (wide format)
+        Can be Fed Funds Rate, 10Y Treasury, or your T-Bill rate
+    high_rate_threshold : float
+        Threshold for "high rate" regime (annualized, as decimal)
+    low_rate_threshold : float
+        Threshold for "low rate" regime (annualized, as decimal)
+    """
+    # Convert all to time series
+    discretionary_ts = reshape_to_timeseries(df_discretionary)
+    industrials_ts = reshape_to_timeseries(df_industrials)
+    tech_ts = reshape_to_timeseries(df_tech)
+    materials_ts = reshape_to_timeseries(df_materials)
+    communication_ts = reshape_to_timeseries(df_communication)
+    financials_ts = reshape_to_timeseries(df_financials)
+    energy_ts = reshape_to_timeseries(df_energy)
+    
+    staples_ts = reshape_to_timeseries(df_staples)
+    healthcare_ts = reshape_to_timeseries(df_healthcare)
+    utilities_ts = reshape_to_timeseries(df_utilities)
+    realestate_ts = reshape_to_timeseries(df_realestate)
+    
+    rf_ts = reshape_to_timeseries(df_rf)
+    
+    interest_rates_ts = reshape_to_timeseries(df_interest_rates)
+    
+    # Combine all series
+    combined = pd.DataFrame({
+        'discretionary': discretionary_ts,
+        'industrials': industrials_ts,
+        'tech': tech_ts,
+        'materials': materials_ts,
+        'communication': communication_ts,
+        'financials': financials_ts,
+        'energy': energy_ts,
+        'staples': staples_ts,
+        'healthcare': healthcare_ts,
+        'utilities': utilities_ts,
+        'realestate': realestate_ts,
+        'rf': rf_ts,
+        'interest_rate': interest_rates_ts
+    })
+    combined = combined.dropna()
+    
+    # Create results DataFrame
+    results = pd.DataFrame(index=combined.index)
+    results['rf'] = combined['rf']
+    results['interest_rate'] = combined['interest_rate']
+    results['rate_regime'] = 'Normal'  # Track which regime we're in
+    results['gross'] = np.nan
+    results['excess'] = np.nan
+    
+    # Calculate returns for each date
+    for date in combined.index:
+        month = date.month
+        current_rate = combined.loc[date, 'interest_rate']
+        
+        # Determine rate regime
+        if current_rate >= high_rate_threshold:
+            rate_regime = 'High'
+        elif current_rate <= low_rate_threshold:
+            rate_regime = 'Low'
+        else:
+            rate_regime = 'Normal'
+        
+        results.loc[date, 'rate_regime'] = rate_regime
+
+        # Determine if we're in offense or defense period
+        # Offense: Mid-Oct through Mid-Apr
+        # Defense: Mid-Apr through Mid-Oct
+        
+        if date.month > offense_start_month or date.month < defense_start_month:
+            # Clearly in offense season
+            in_offense = True
+        elif date.month > defense_start_month and date.month < offense_start_month:
+            # Clearly in defense season
+            in_offense = False
+        elif date.month == offense_start_month:
+            # October - check day
+            in_offense = date.day >= offense_start_day
+        elif date.month == defense_start_month:
+            # April - check day
+            in_offense = date.day < defense_start_day
+        else:
+            # Shouldn't reach here, but default to standard months
+            in_offense = date.month in [11, 12, 1, 2, 3, 4]
+        
+        # OFFENSE PERIOD (Nov-Apr)
+        if in_offense:
+            
+            if rate_regime == 'High':
+                # HIGH RATES: Overweight Financials (benefit from rates), add Energy
+                offense_weights = {
+                    'discretionary': 0.15,      # Keep reasonable - consumer spending
+                    'industrials': 0.20,        # OVERWEIGHT - capex benefits
+                    'tech': 0.15,               # Reduce but don't kill (Mag 7 too important)
+                    'materials': 0.20,          # OVERWEIGHT - commodities/inflation hedge
+                    'communication': 0.10,      # Underweight - rate sensitive
+                    'financials': 0.20,         # OVERWEIGHT - net interest margin benefits
+                    'energy': 0.00              # REMOVE - too volatile, doesn't help
+                }
+            
+            elif rate_regime == 'Low':
+                # LOW RATES: Overweight Tech, Communication (growth benefits)
+                offense_weights = {
+                    'discretionary': 0.20,      # OVERWEIGHT - consumer confidence high
+                    'industrials': 0.15,        # Moderate weight
+                    'tech': 0.30,               # OVERWEIGHT - growth premium expands
+                    'materials': 0.10,          # Underweight - less inflation pressure
+                    'communication': 0.20,      # OVERWEIGHT - growth sector
+                    'financials': 0.05,         # Underweight - NIM compression
+                    'energy': 0.00              # REMOVE - doesn't fit low-rate regime
+                }
+            
+            else:  # Normal rates
+                # NORMAL: Equal weight across 6 main sectors (no Energy)
+                offense_weights = {
+                    'discretionary': 1/6,
+                    'industrials': 1/6,
+                    'tech': 1/6,
+                    'materials': 1/6,
+                    'communication': 1/6,
+                    'financials': 1/6,
+                    'energy': 0.0
+                }
+            
+            portfolio_return = (
+                offense_weights['discretionary'] * combined.loc[date, 'discretionary'] +
+                offense_weights['industrials'] * combined.loc[date, 'industrials'] +
+                offense_weights['tech'] * combined.loc[date, 'tech'] +
+                offense_weights['materials'] * combined.loc[date, 'materials'] +
+                offense_weights['communication'] * combined.loc[date, 'communication'] +
+                offense_weights['financials'] * combined.loc[date, 'financials'] +
+                offense_weights['energy'] * combined.loc[date, 'energy']
+            )
+        
+        # DEFENSE PERIOD (May-Oct)
+        else:
+            
+            if rate_regime == 'High':
+                # HIGH RATES: Favor Utilities (income), reduce Real Estate (hurt by rates)
+                if include_realestate:
+                    defense_weights = {
+                        'staples': 0.30,
+                        'healthcare': 0.30,
+                        'utilities': 0.35,      # OVERWEIGHT - income benefits
+                        'realestate': 0.05      # Underweight - hurt by high rates
+                    }
+                else:
+                    defense_weights = {
+                        'staples': 1/3,
+                        'healthcare': 1/3,
+                        'utilities': 1/3,
+                        'realestate': 0.0
+                    }
+            
+            elif rate_regime == 'Low':
+                # LOW RATES: Can increase Real Estate (benefits from low rates)
+                if include_realestate:
+                    defense_weights = {
+                        'staples': 0.25,
+                        'healthcare': 0.25,
+                        'utilities': 0.20,      # Slightly underweight
+                        'realestate': 0.30      # OVERWEIGHT - benefits from low rates
+                    }
+                else:
+                    defense_weights = {
+                        'staples': 1/3,
+                        'healthcare': 1/3,
+                        'utilities': 1/3,
+                        'realestate': 0.0
+                    }
+            
+            else:  # Normal rates
+                # NORMAL: Equal weight
+                if include_realestate:
+                    defense_weights = {
+                        'staples': 0.25,
+                        'healthcare': 0.25,
+                        'utilities': 0.25,
+                        'realestate': 0.25
+                    }
+                else:
+                    defense_weights = {
+                        'staples': 1/3,
+                        'healthcare': 1/3,
+                        'utilities': 1/3,
+                        'realestate': 0.0
+                    }
+            
+            portfolio_return = (
+                defense_weights['staples'] * combined.loc[date, 'staples'] +
+                defense_weights['healthcare'] * combined.loc[date, 'healthcare'] +
+                defense_weights['utilities'] * combined.loc[date, 'utilities'] +
+                defense_weights['realestate'] * combined.loc[date, 'realestate']
+            )
+        
+        results.loc[date, 'gross'] = portfolio_return
+        results.loc[date, 'excess'] = portfolio_return - combined.loc[date, 'rf']
+    
+    return results
+
+
+
 def calculate_long_short_returns_ts(df_cyclical, df_defensive, df_rf):
     """
     Calculate Long-Short strategy as time series.
@@ -402,7 +724,6 @@ def create_summary_table_ts(strategies_dict, period_name="Full Period"):
 
 
 
-
 def plot_cumulative_returns(strategies_dict, title="Cumulative Returns"):
     """
     Plot cumulative returns for all strategies.
@@ -434,7 +755,7 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns"):
 
 
 def plot_cumulative_returns(strategies_dict, title="Cumulative Returns", 
-                           rf_data=None, high_rate_threshold=4):
+                           rf_data=None, high_rate_threshold=3):
     """
     Plot cumulative returns for all strategies with optional interest rate shading.
     
@@ -498,7 +819,7 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns",
                       label='High Rate (>4%)' if start == starts[0] else '')
         
         # Add threshold info
-        ax.text(0.02, 0.98, f'High Rate Threshold: {high_rate_threshold:.1%}',
+        ax.text(0.02, 0.98, f'High Rate Threshold: {high_rate_threshold}%',
                 transform=ax.transAxes, verticalalignment='top',
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7),
                 fontsize=9)
