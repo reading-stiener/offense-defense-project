@@ -419,19 +419,19 @@ def calculate_modified_szne_returns_ts(
         # OFFENSE PERIOD (Nov-Apr)
         if in_offense:
             
-            if rate_regime == 'High':
-                # HIGH RATES: Overweight Financials (benefit from rates), add Energy
-                offense_weights = {
-                    'discretionary': 0.15,      # Keep reasonable - consumer spending
-                    'industrials': 0.20,        # OVERWEIGHT - capex benefits
-                    'tech': 0.15,               # Reduce but don't kill (Mag 7 too important)
-                    'materials': 0.20,          # OVERWEIGHT - commodities/inflation hedge
-                    'communication': 0.10,      # Underweight - rate sensitive
-                    'financials': 0.20,         # OVERWEIGHT - net interest margin benefits
-                    'energy': 0.00              # REMOVE - too volatile, doesn't help
-                }
+            # if rate_regime == 'High':
+            #     # HIGH RATES: Overweight Financials (benefit from rates), add Energy
+            #     offense_weights = {
+            #         'discretionary': 0.15,      # Keep reasonable - consumer spending
+            #         'industrials': 0.20,        # OVERWEIGHT - capex benefits
+            #         'tech': 0.15,               # Reduce but don't kill (Mag 7 too important)
+            #         'materials': 0.20,          # OVERWEIGHT - commodities/inflation hedge
+            #         'communication': 0.10,      # Underweight - rate sensitive
+            #         'financials': 0.20,         # OVERWEIGHT - net interest margin benefits
+            #         'energy': 0.00              # REMOVE - too volatile, doesn't help
+            #     }
             
-            elif rate_regime == 'Low':
+            if rate_regime == 'Low' or rate_regime == 'High':
                 # LOW RATES: Overweight Tech, Communication (growth benefits)
                 offense_weights = {
                     'discretionary': 0.20,      # OVERWEIGHT - consumer confidence high
@@ -468,24 +468,24 @@ def calculate_modified_szne_returns_ts(
         # DEFENSE PERIOD (May-Oct)
         else:
             
-            if rate_regime == 'High':
-                # HIGH RATES: Favor Utilities (income), reduce Real Estate (hurt by rates)
-                if include_realestate:
-                    defense_weights = {
-                        'staples': 0.30,
-                        'healthcare': 0.30,
-                        'utilities': 0.35,      # OVERWEIGHT - income benefits
-                        'realestate': 0.05      # Underweight - hurt by high rates
-                    }
-                else:
-                    defense_weights = {
-                        'staples': 1/3,
-                        'healthcare': 1/3,
-                        'utilities': 1/3,
-                        'realestate': 0.0
-                    }
+            # if rate_regime == 'High':
+            #     # HIGH RATES: Favor Utilities (income), reduce Real Estate (hurt by rates)
+            #     if include_realestate:
+            #         defense_weights = {
+            #             'staples': 0.30,
+            #             'healthcare': 0.30,
+            #             'utilities': 0.35,      # OVERWEIGHT - income benefits
+            #             'realestate': 0.05      # Underweight - hurt by high rates
+            #         }
+            #     else:
+            #         defense_weights = {
+            #             'staples': 1/3,
+            #             'healthcare': 1/3,
+            #             'utilities': 1/3,
+            #             'realestate': 0.0
+            #         }
             
-            elif rate_regime == 'Low':
+            if rate_regime == 'Low' or rate_regime == 'High':
                 # LOW RATES: Can increase Real Estate (benefits from low rates)
                 if include_realestate:
                     defense_weights = {
@@ -739,7 +739,7 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns"):
     
     for strategy_name, returns_ts in strategies_dict.items():
         # Calculate cumulative returns
-        cum_returns = (1 + returns_ts/100).cumprod()
+        cum_returns = 1000 * (1 + returns_ts/100).cumprod()
         
         # Plot
         ax.plot(cum_returns.index, cum_returns.values, label=strategy_name, linewidth=2)
@@ -776,7 +776,7 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns",
     # Plot cumulative returns for each strategy
     for strategy_name, returns_df in strategies_dict.items():
         # Calculate cumulative returns from gross column
-        cum_returns = (1 + returns_df/100).cumprod()
+        cum_returns = 1000 * (1 + returns_df/100).cumprod()
         
         # Plot
         ax.plot(cum_returns.index, cum_returns.values, label=strategy_name, linewidth=2)
@@ -825,7 +825,7 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns",
                 fontsize=9)
     
     ax.set_xlabel('Date', fontsize=12)
-    ax.set_ylabel('Cumulative Return (Growth of $1)', fontsize=12)
+    ax.set_ylabel('Cumulative Return (Growth of $1000)', fontsize=12)
     ax.set_title(title, fontsize=14, fontweight='bold')
     ax.legend(fontsize=10, loc='best')
     ax.grid(True, alpha=0.3)
