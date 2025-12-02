@@ -309,8 +309,8 @@ def calculate_modified_szne_returns_ts(
     df_rf,
     df_interest_rates,  # NEW: Interest rate time series
     # Rate thresholds
-    high_rate_threshold=3,  # 4% annual
-    low_rate_threshold=1,   # 2% annual
+    high_rate_threshold=4,  # 4% annual
+    low_rate_threshold=2,   # 2% annual
     # Configuration
     include_realestate=False,
      # Timing parameters
@@ -755,7 +755,7 @@ def plot_cumulative_returns(strategies_dict, title="Cumulative Returns"):
 
 
 def plot_cumulative_returns(strategies_dict, title="Cumulative Returns", 
-                           rf_data=None, high_rate_threshold=3):
+                           rf_data=None, high_rate_threshold=4):
     """
     Plot cumulative returns for all strategies with optional interest rate shading.
     
